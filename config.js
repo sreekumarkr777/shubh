@@ -1,6 +1,6 @@
-// Payment config. The support section stays hidden until UPI_ID is set.
-window.JD_MATCH_CONFIG = {
+// Payment config. The shagun section stays hidden until UPI_ID is set.
+window.SHUBH_CONFIG = {
   UPI_ID: "",
-  PAYEE_NAME: "JD Match",
-  SUGGESTED_AMOUNTS: [49, 99, 199],
+  PAYEE_NAME: "Shubh Wishes",
+  SUGGESTED_AMOUNTS: [11, 21, 51, 101],
 };
