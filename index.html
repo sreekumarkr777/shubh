@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JD Match — check your resume against a job description</title>
+<meta name="description" content="Paste your resume and a job description. See your keyword match score, the skills you're missing, and quick fixes. Free, private, runs entirely in your browser.">
+<meta property="og:title" content="JD Match — resume vs job description, in your browser">
+<meta property="og:description" content="Keyword match score, missing skills and resume fixes. Nothing is uploaded. Built by an AI agent trying to earn its first $1.">
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e2e0d8;
+    --accent: #1f6f5c; --accent-ink: #ffffff; --good: #1f6f5c; --warn: #b26a00; --bad: #b3372e;
+    --chip-hit: #dcefe9; --chip-miss: #f8e1de;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151614; --card: #1e201d; --ink: #ecebe6; --muted: #a09f98; --line: #33352f;
+      --accent: #58b99f; --accent-ink: #10241e; --good: #58b99f; --warn: #e0a64a; --bad: #ea8279;
+      --chip-hit: #1d3a32; --chip-miss: #46231f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 20px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  p.lead { color: var(--muted); margin: 0 0 24px; max-width: 62ch; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 240px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
+  textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 16px 0 32px; }
+  button { font: inherit; font-weight: 600; padding: 11px 20px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); }
+  .note { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .score { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .score b { font-size: 56px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 14px 0 4px; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 3px 10px; border-radius: 99px; font-size: 14px; background: var(--chip-hit); }
+  .chip.miss { background: var(--chip-miss); }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li { padding: 8px 0; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  ul.checks li:first-child { border-top: 0; }
+  .ok { color: var(--good); } .fix { color: var(--warn); } .mark { font-weight: 700; flex: none; width: 1.2em; }
+  #support .amounts { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  #support .pay { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  #qr { background: #fff; padding: 10px; border-radius: 10px; width: 180px; height: 180px; }
+  #qr img, #qr canvas { width: 160px; height: 160px; display: block; }
+  code { font: 14px ui-monospace, Menlo, monospace; }
+  footer { color: var(--muted); font-size: 14px; margin-top: 32px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Does your resume match the job?</h1>
+  <p class="lead">Paste your resume and the job description. You get a keyword match score, the skills the posting asks for that your resume never mentions, and a few quick fixes. Nothing leaves your browser.</p>
+
+  <div class="grid">
+    <div>
+      <label for="resume">Your resume (plain text)</label>
+      <textarea id="resume" placeholder="Paste the text of your resume here"></textarea>
+    </div>
+    <div>
+      <label for="jd">Job description</label>
+      <textarea id="jd" placeholder="Paste the job posting here"></textarea>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="run">Check match</button>
+    <button id="sample" class="ghost">Try a sample</button>
+    <span class="note" id="msg" role="status"></span>
+  </div>
+
+  <section id="results" hidden>
+    <div class="card">
+      <h2>Match score</h2>
+      <div class="score"><b id="pct">0%</b><span id="verdict"></span></div>
+      <div class="bar"><i id="barfill" style="width:0%"></i></div>
+      <p class="note" id="scorenote"></p>
+    </div>
+    <div class="card">
+      <h2>Keywords</h2>
+      <h3>Missing from your resume</h3>
+      <div class="chips" id="missing"></div>
+      <h3>Already covered</h3>
+      <div class="chips" id="matched"></div>
+      <p class="note">Only add a missing keyword if you really have that skill. Use the posting's exact wording where it's true.</p>
+    </div>
+    <div class="card">
+      <h2>Resume checks</h2>
+      <ul class="checks" id="checks"></ul>
+    </div>
+  </section>
+
+  <section class="card" id="support" hidden>
+    <h2>Was this useful? Pay what you want.</h2>
+    <p>This tool was designed, built and shipped by an AI agent (Claude) as an experiment: can an agent earn its first $1 honestly, with no ads and no tracking? If it helped, chip in by UPI. The tool stays free either way.</p>
+    <div class="amounts" id="amounts"></div>
+    <div class="pay">
+      <div id="qr" aria-label="UPI QR code"></div>
+      <div>
+        <p><a id="upilink" href="#"><button type="button">Pay with a UPI app</button></a></p>
+        <p class="note">Scan the QR with any UPI app, or pay to <code id="upiid"></code></p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Private by design: the analysis runs in JavaScript on this page and your text is never sent anywhere. The score is a keyword-overlap estimate, not a guarantee of how any particular applicant tracking system will rank you.</p>
+  </footer>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const STOP = new Set(("a about above across after again all also am an and any are as at be because been before being below between both but by can could did do does doing down during each etc few for from further had has have having he her here hers him his how i if in into is it its itself just me more most my no nor not of off on once only or other our ours out over own per same she should so some such than that the their them then there these they this those through to too under until up us very was we were what when where which while who whom why will with within without would you your yours " +
+  "ability able across applicant applicants apply based benefits candidate candidates company culture day days description desired employer employment equal etc excellent experience experienced great good help ideal including job join looking minimum must need needs new nice offer opportunity plus preferred qualifications required requirements responsibilities responsibility role skills strong team teams time understanding using want well work working year years like one two three highly role's we're you'll you're ll re ve us our make part every get high level across ensure related relevant knowledge proficiency proficient familiarity familiar hands best practices solid proven track record degree bachelor bachelors master masters equivalent environment fast paced world build building built").split(/\s+/));
+
+// Multi-word and symbol-heavy skills that naive tokenizing would break apart.
+const PHRASES = ["machine learning","deep learning","data science","data analysis","data engineering","data structures","computer vision","natural language processing","large language models","generative ai","prompt engineering","project management","product management","program management","stakeholder management","people management","account management","time management","change management","risk management","supply chain","customer success","customer service","customer support","business development","business analysis","business intelligence","financial modeling","financial analysis","digital marketing","content marketing","email marketing","social media","performance marketing","market research","user research","user experience","user interface","design systems","design thinking","rest api","rest apis","restful apis","unit testing","integration testing","test automation","test driven development","continuous integration","continuous delivery","ci/cd","version control","system design","distributed systems","object oriented","functional programming","microservices","event driven","message queues","cloud computing","google cloud","amazon web services","react native","next.js","node.js","vue.js","express.js","nest.js","spring boot","ruby on rails","asp.net",".net","c++","c#","power bi","google analytics","google ads","a/b testing","sql server","no sql","nosql","big data","etl pipelines","data pipelines","data warehouse","data modeling","data visualization","problem solving","cross functional","communication skills","public speaking","technical writing","agile methodologies","scrum master","six sigma","lean manufacturing","quality assurance","root cause analysis","incident management","site reliability","infrastructure as code","information security","penetration testing","identity and access management","search engine optimization","pay per click","lead generation","sales operations","go to market","profit and loss","accounts payable","accounts receivable","general ledger","financial reporting","talent acquisition","performance management","employee relations","open source","web services","mobile development","front end","back end","full stack","web development","software development","software engineering","ms excel","microsoft excel","microsoft office","g suite","tailwind css","material ui","github actions","pull requests","code review","technical leadership","team leadership"];
+
+const SKILLS = new Set("sql aws gcp azure api apis css html php java ruby rust go golang ios android swift kotlin scala perl python javascript typescript react angular vue svelte node django flask fastapi laravel rails spring hibernate graphql grpc rest json xml yaml bash linux unix shell powershell docker kubernetes terraform ansible jenkins git github gitlab bitbucket jira confluence postgresql postgres mysql mongodb redis elasticsearch kafka rabbitmq spark hadoop airflow snowflake bigquery redshift databricks dbt tableau looker excel pandas numpy pytorch tensorflow keras sklearn llm llms nlp ml ai rag langchain openai figma sketch photoshop illustrator canva webflow wordpress shopify salesforce hubspot zoho sap oracle tally quickbooks gst tds crm erp seo sem ppc kpi kpis okr okrs etl saas b2b b2c ui ux qa bi hr agile scrum kanban lean devops sre security compliance audit tax payroll recruiting sourcing onboarding forecasting budgeting pricing analytics automation testing selenium cypress playwright jest pytest junit redux tailwind bootstrap sass webpack vite firebase supabase vercel netlify heroku nginx microservices serverless lambda oauth sso encryption networking blockchain solidity unity unreal flutter dart xamarin matlab stata spss copywriting editing negotiation leadership mentoring".split(" "));
+
+const ACTION_VERBS = ["led","built","designed","launched","shipped","created","developed","implemented","improved","increased","reduced","managed","owned","delivered","automated","optimized","migrated","architected","scaled","drove","grew","negotiated","analyzed","mentored","established","streamlined","spearheaded","achieved","saved","generated"];
+
+const norm = s => s.toLowerCase().replace(/[‘’]/g, "'").replace(/[‐-―]/g, "-");
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const hasTerm = (text, term) => new RegExp("(^|[^a-z0-9+#.])" + esc(term) + "(?![a-z0-9+#])", "i").test(text);
+const countTerm = (text, term) => (text.match(new RegExp("(^|[^a-z0-9+#.])" + esc(term) + "(?![a-z0-9+#])", "gi")) || []).length;
+
+// Light stemming so "manage" in a resume matches "managing" in a posting.
+function stem(w) {
+  if (w.length < 5 || /[^a-z]/.test(w)) return w;
+  return w.replace(/(ations?|ments?|ings?|ers?|ies|ed|es|s)$/, m => m === "ies" ? "y" : "");
+}
+
+function extractKeywords(jdRaw) {
+  const jd = norm(jdRaw);
+  const found = new Map(); // term -> weight
+  for (const p of PHRASES) {
+    const n = countTerm(jd, p);
+    if (n) found.set(p, n + 2);
+  }
+  let rest = jd;
+  for (const p of found.keys()) rest = rest.replace(new RegExp(esc(p), "g"), " ");
+  const tokens = rest.match(/[a-z][a-z0-9+#.\-/]*[a-z0-9+#]|[a-z]/g) || [];
+  const counts = new Map();
+  for (const t of tokens) {
+    const w = t.replace(/^[.\-/]+|[.\-/]+$/g, "");
+    if (w.length < 2 || STOP.has(w) || /^\d+$/.test(w)) continue;
+    counts.set(w, (counts.get(w) || 0) + 1);
+  }
+  // Short or symbol-bearing tokens (sql, aws, go, c++) are usually skills; long plain words need to repeat.
+  for (const [w, n] of counts) {
+    const techy = /[0-9+#./]/.test(w) || SKILLS.has(w);
+    if (techy || n >= 2) found.set(w, n + (techy ? 1 : 0));
+  }
+  return [...found.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 40);
+}
+
+function analyze(resumeRaw, jdRaw) {
+  const resume = norm(resumeRaw);
+  const resumeStems = new Set((resume.match(/[a-z]+/g) || []).map(stem));
+  const kws = extractKeywords(jdRaw);
+  const matched = [], missing = [];
+  let hitW = 0, totalW = 0;
+  for (const [term, w] of kws) {
+    const present = hasTerm(resume, term) || (!/[^a-z]/.test(term) && resumeStems.has(stem(term)));
+    totalW += w;
+    if (present) { hitW += w; matched.push(term); } else missing.push(term);
+  }
+  const pct = totalW ? Math.round(100 * hitW / totalW) : 0;
+
+  const words = (resumeRaw.match(/\S+/g) || []).length;
+  const lines = resumeRaw.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const bullets = lines.filter(l => /^[-•*▪◦·–]/.test(l) || l.split(/\s+/).length >= 8);
+  const quantified = bullets.filter(l => /\d/.test(l.replace(/\b(19|20)\d{2}\b/g, ""))).length;
+  const verbs = ACTION_VERBS.filter(v => hasTerm(resume, v)).length;
+  const checks = [];
+  const add = (ok, good, fix) => checks.push({ ok, text: ok ? good : fix });
+  add(/[\w.+-]+@[\w-]+\.[\w.]+/.test(resumeRaw), "Email address found.", "No email address found. Put it at the top.");
+  add(/(\+?\d[\d\s().-]{8,}\d)/.test(resumeRaw), "Phone number found.", "No phone number found. Recruiters often call before they email.");
+  add(/linkedin\.com\/|github\.com\//i.test(resumeRaw), "LinkedIn or GitHub link found.", "No LinkedIn or GitHub link. Add one so reviewers can verify your work.");
+  add(words >= 300 && words <= 900, `Length looks right (${words} words).`, words < 300 ? `Only ${words} words. Most strong resumes run 400 to 800; add detail on impact.` : `${words} words is long. Trim toward 800 so the relevant parts stand out.`);
+  add(bullets.length && quantified / bullets.length >= 0.3, `${quantified} of ${bullets.length} lines include a number.`, `Only ${quantified} of ${bullets.length} lines include a number. Add metrics: %, ₹, users, time saved.`);
+  add(verbs >= 5, `Good use of action verbs (${verbs} different ones).`, `Few strong action verbs (${verbs}). Start bullets with words like "built", "led", "reduced".`);
+  for (const [name, re] of [["Experience", /\b(experience|employment|work history)\b/i], ["Education", /\beducation\b/i], ["Skills", /\bskills\b/i]])
+    add(re.test(resumeRaw), `"${name}" section found.`, `No "${name}" heading found. Standard headings help resume parsers.`);
+  return { pct, matched, missing, checks, total: kws.length };
+}
+
+const $ = id => document.getElementById(id);
+function chips(el, items, cls) {
+  el.replaceChildren(...(items.length ? items : ["none"]).map(t => {
+    const s = document.createElement("span");
+    s.className = "chip" + (cls && items.length ? " " + cls : "");
+    s.textContent = t;
+    return s;
+  }));
+}
+function run() {
+  const resume = $("resume").value.trim(), jd = $("jd").value.trim();
+  if (resume.length < 100 || jd.length < 100) { $("msg").textContent = "Paste both your resume and the job description first (at least a few lines each)."; return; }
+  $("msg").textContent = "";
+  const r = analyze(resume, jd);
+  $("pct").textContent = r.pct + "%";
+  $("barfill").style.width = r.pct + "%";
+  $("verdict").textContent = r.pct >= 75 ? "Strong match" : r.pct >= 50 ? "Decent match, room to tailor" : "Weak match, tailor before applying";
+  $("scorenote").textContent = `Based on ${r.total} keywords pulled from the posting, weighted by how often each appears.`;
+  chips($("missing"), r.missing, "miss");
+  chips($("matched"), r.matched);
+  $("checks").replaceChildren(...r.checks.map(c => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="mark ${c.ok ? "ok" : "fix"}">${c.ok ? "✓" : "!"}</span><span></span>`;
+    li.lastChild.textContent = c.text;
+    return li;
+  }));
+  $("results").hidden = false;
+  if (supportReady) $("support").hidden = false;
+  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("run").addEventListener("click", run);
+$("sample").addEventListener("click", () => {
+  $("resume").value = "Asha Menon\nasha.menon@example.com | +91 98765 43210 | linkedin.com/in/ashamenon\n\nExperience\nSoftware Engineer, Finlytics (2022 to present)\n- Built REST APIs in Node.js and PostgreSQL serving 40,000 daily users\n- Reduced page load time by 35% by migrating the dashboard to React and adding caching\n- Led a team of 3 to ship a payments reconciliation service on AWS\n- Automated unit testing with Jest, raising coverage from 40% to 82%\n\nJunior Developer, Webcraft (2020 to 2022)\n- Developed client websites with JavaScript, HTML and CSS\n- Improved deployment time by 50% using GitHub Actions\n\nEducation\nB.Tech Computer Science, CUSAT, 2020\n\nSkills\nJavaScript, React, Node.js, PostgreSQL, AWS, Git, Jest";
+  $("jd").value = "Senior Full Stack Engineer\n\nWe are looking for a full stack engineer to build and scale our lending platform.\n\nResponsibilities\n- Design and build microservices in Node.js and TypeScript\n- Build responsive front end features in React and Next.js\n- Own CI/CD pipelines and deployments on AWS using Docker and Kubernetes\n- Write unit testing and integration testing suites\n- Mentor junior engineers and take part in code review and system design\n\nRequirements\n- 4+ years with JavaScript and TypeScript\n- Strong experience with React, Node.js and REST APIs\n- Experience with PostgreSQL and Redis\n- Experience with Docker, Kubernetes and AWS\n- Good understanding of system design and microservices\n- Familiarity with GraphQL is a plus";
+  run();
+});
+
+// UPI support section: only shown when a UPI ID is configured.
+const cfg = window.JD_MATCH_CONFIG || {};
+const supportReady = !!cfg.UPI_ID;
+if (supportReady) {
+  let qr;
+  const setAmount = amt => {
+    const url = `upi://pay?pa=${encodeURIComponent(cfg.UPI_ID)}&pn=${encodeURIComponent(cfg.PAYEE_NAME)}&am=${amt}&cu=INR&tn=${encodeURIComponent("JD Match support")}`;
+    $("upilink").href = url;
+    if (window.QRCode) {
+      if (qr) { qr.clear(); qr.makeCode(url); }
+      else qr = new QRCode($("qr"), { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    }
+    for (const b of $("amounts").children) b.className = +b.dataset.amt === amt ? "" : "ghost";
+  };
+  for (const amt of cfg.SUGGESTED_AMOUNTS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.amt = amt; b.textContent = "₹" + amt;
+    b.addEventListener("click", () => setAmount(amt));
+    $("amounts").append(b);
+  }
+  $("upiid").textContent = cfg.UPI_ID;
+  setAmount(cfg.SUGGESTED_AMOUNTS[1] || cfg.SUGGESTED_AMOUNTS[0]);
+}
+</script>
+</body>
+</html>
